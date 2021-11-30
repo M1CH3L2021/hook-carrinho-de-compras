@@ -48,65 +48,86 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
 
   const addProduct = async (productId: number) => {
     try {
-      let { data: product } = await api.get<Product>(`/products/${productId}`)
       let { data: stock } = await api.get<Stock>(`/stock/${productId}`)
-      
-      product = {
-        ...product,
-        amount: 1
+
+      const productExists = cart.find(product => product.id === productId)
+      let amount = productExists ? productExists.amount : 0;
+      amount += 1
+
+      if (amount > stock.amount) {
+        toast.error('Quantidade solicitada fora de estoque');
+        return;
       }
 
-      stock = {
-        ...stock,
-        amount: stock.amount - 1
+      if (productExists) {
+        if (amount <= stock.amount) {
+          const updatedCart = cart.map(product => {
+            if (product.id === productExists.id) {
+              product.amount = amount
+              
+              return product
+            }
+
+            return product
+          })
+
+          setCart([...updatedCart])
+        }
+      } else {
+        let { data: product } = await api.get<Product>(`/products/${productId}`)
+
+        product = {
+          ...product,
+          amount: 1
+        }
+
+        setCart([...cart, product])
       }
-
-      const isProductAlreadyInCart = cart.some(product => {
-        return product.id === productId
-      })
-
-      isProductAlreadyInCart
-        ? toast.info('Este produto já está no carrinho!')
-        : setCart([...cart, product])
-      console.log(cart)
     } catch {
-      toast.error('Falha ao adicionar produto ao carrinho')
+      toast.error('Erro na adição do produto')
     }
   };
 
   const removeProduct = (productId: number) => {
     try {
-      const cartWithoutRemovedProduct = cart.filter(product => {
-        return product.id !== productId 
-      })
+      const productExists = cart.some(product => product.id === productId)
 
-      setCart([...cartWithoutRemovedProduct])
-      console.log(cart)
+      if (productExists) {
+        const cartWithoutRemovedProduct = cart.filter(product => {
+          return product.id !== productId 
+        })
+  
+        setCart([...cartWithoutRemovedProduct])
+      } else {
+        throw new Error()
+      }
     } catch {
-      toast.error('Falha ao remover produto do carrinho')
+      toast.error('Erro na remoção do produto')
     }
   };
 
   const updateProductAmount = async ({ productId, amount }: UpdateProductAmount) => {
     try {
       let { data: stock } = await api.get<Stock>(`/stock/${productId}`)
+      const productExists = cart.find(product => product.id === productId)
 
-      const cartWithAmountsUpdated = cart.map(product => {
-        if (product.id === productId && amount < stock.amount + 1) {
-          product.amount = amount
-          return product
-        }
+      if (amount <= 0) {
+        return;
+      }
 
-        return product
-      })
+      if (stock.amount < amount) {
+        toast.error('Quantidade solicitada fora de estoque');
+        return;
+      }
 
-      if (amount > stock.amount) {
-        toast.warn('O estoque deste produto se esgotou!')
+      if (productExists) {
+        productExists.amount = amount
+        setCart([...cart])
       } else {
-        setCart([...cartWithAmountsUpdated])
+        throw new Error()
       }
     } catch {
-      toast.error('Falha ao alterar a quantidade do produto!')
+      toast.error('Erro na alteração de quantidade do produto')
     }
   };
 
